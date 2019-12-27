@@ -15,18 +15,33 @@
 (defn remove-channel [channel]
   (swap! channels disj channel))
 
+(def id (atom 0))
+
+(defn increment-id [message]
+  (let [mapMessage (json/read-str message :key-fn keyword)
+        incMessage (assoc mapMessage :uid (swap! id inc))]
+    (json/write-str incMessage)))
+
 (defn addMessage-handler [request]
   (with-channel request channel 
     (add-channel channel)
     (on-close channel (fn [status]
                         (remove-channel channel)))
     (on-receive channel (fn [data] 
-                          (println (str data))
-                          (doseq [ch @channels]
-                            (send! ch (json/write-str data)))))))
+                          (let [message (increment-id data)]
+                            (println (str message))
+                            (doseq [ch @channels]
+                              (send! ch message)))))))
 
+(defn deleteMessage-handler [request]
+  (with-channel request channel 
+    (on-receive channel (fn [data]
+                          (println "Deleting message with uid " data)
+                          (doseq [ch @channels]
+                            (send! ch data))))))
 (defroutes app-routes
-  (GET "/addMessage" [] addMessage-handler))
+  (GET "/addMessage" [] addMessage-handler)
+  (GET "/deleteMessage" [] deleteMessage-handler))
 
 (def chat-app
   (-> app-routes
