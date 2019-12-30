@@ -7,12 +7,13 @@
             [ring.middleware.json :refer :all]
             [ring.middleware.cors :refer [wrap-cors]]))
 
-(def channels (atom #{}))
+(def addMessage-channels (atom #{}))
+(def deleteMessage-channels (atom #{}))
 
-(defn add-channel [channel]
+(defn add-channel [channel channels]
   (swap! channels conj channel))
 
-(defn remove-channel [channel]
+(defn remove-channel [channel channels]
   (swap! channels disj channel))
 
 (def id (atom 0))
@@ -24,21 +25,25 @@
 
 (defn addMessage-handler [request]
   (with-channel request channel 
-    (add-channel channel)
+    (add-channel channel addMessage-channels)
     (on-close channel (fn [status]
-                        (remove-channel channel)))
+                        (remove-channel channel addMessage-channels)))
     (on-receive channel (fn [data] 
                           (let [message (increment-id data)]
                             (println (str message))
-                            (doseq [ch @channels]
+                            (doseq [ch @addMessage-channels]
                               (send! ch message)))))))
 
 (defn deleteMessage-handler [request]
   (with-channel request channel 
+    (add-channel channel deleteMessage-channels)
+    (on-close channel (fn [status]
+                        (remove-channel channel deleteMessage-channels)))
     (on-receive channel (fn [data]
                           (println "Deleting message with uid " data)
-                          (doseq [ch @channels]
+                          (doseq [ch @deleteMessage-channels]
                             (send! ch data))))))
+
 (defroutes app-routes
   (GET "/addMessage" [] addMessage-handler)
   (GET "/deleteMessage" [] deleteMessage-handler))
