@@ -9,6 +9,7 @@
 
 (def addMessage-channels (atom #{}))
 (def deleteMessage-channels (atom #{}))
+(def editMessage-channels (atom #{}))
 
 (defn add-channel [channel channels]
   (swap! channels conj channel))
@@ -44,9 +45,20 @@
                           (doseq [ch @deleteMessage-channels]
                             (send! ch data))))))
 
+(defn editMessage-handler [request] 
+  (with-channel request channel 
+    (add-channel channel editMessage-channels)
+    (on-close channel (fn [status]
+                        (remove-channel channel editMessage-channels)))
+    (on-receive channel (fn [data] 
+                          (println "Editing message" data)
+                          (doseq [ch @editMessage-channels] 
+                            (send! ch data))))))
+
 (defroutes app-routes
   (GET "/addMessage" [] addMessage-handler)
-  (GET "/deleteMessage" [] deleteMessage-handler))
+  (GET "/deleteMessage" [] deleteMessage-handler)
+  (GET "/editMessage" [] editMessage-handler))
 
 (def chat-app
   (-> app-routes
